@@ -8,7 +8,7 @@ The commands listed below can be used to restructure your files. By default, it 
 ## convert()
 This command cleans the filenames by renaming them to a zero-padded `CHAPTER-PAGE` format. Example:
 | Pathname Before                | Pathname After                     |
-|--------------------------------|------------------------------------|
+| ------------------------------ | ---------------------------------- |
 | Shingeki no Kyojin 1/a0001.jpg | Shingeki no Kyojin 1/00001-001.jpg |
 | Shingeki no Kyojin 1/a0002.jpg | Shingeki no Kyojin 1/00001-002.jpg |
 | ...                            | ...                                |
@@ -19,7 +19,7 @@ This command cleans the filenames by renaming them to a zero-padded `CHAPTER-PAG
 ## move()
 Moves the files to grouped folders. Example:
 | Pathname Before                     | Pathname After                               |
-|-------------------------------------|----------------------------------------------|
+| ----------------------------------- | -------------------------------------------- |
 | Shingeki no Kyojin 1/00001-001.jpg  | Shingeki no Kyojin 0000,5-0010/00001-001.jpg |
 | Shingeki no Kyojin 1/00001-002.jpg  | Shingeki no Kyojin 0000,5-0010/00001-002.jpg |
 | ...                                 | ...                                          |
@@ -32,7 +32,7 @@ Moves the files to grouped folders. Example:
 ## archive()
 Archive the folders. The default, and only supported format, is .zip. Example:
 | Pathname Before                 | Pathname After                     |
-|---------------------------------|------------------------------------|
+| ------------------------------- | ---------------------------------- |
 | Shingeki no Kyojin 0000,5-0010\ | Shingeki no Kyojin 0000,5-0010.zip |
 | Shingeki no Kyojin 0010,5-0020\ | Shingeki no Kyojin 0010,5-0020.zip |
 | ...                             | ...                                |
@@ -40,7 +40,7 @@ Archive the folders. The default, and only supported format, is .zip. Example:
 ## to_cbz()
 Renames the archived files so they end in the .cbz format -- one that is handled by Kobo and Kindle e-book readers. Example:
 | Pathname Before                    | Pathname After                     |
-|------------------------------------|------------------------------------|
+| ---------------------------------- | ---------------------------------- |
 | Shingeki no Kyojin 0000,5-0010.zip | Shingeki no Kyojin 0000,5-0010.cbz |
 | Shingeki no Kyojin 0010,5-0020.zip | Shingeki no Kyojin 0010,5-0020.cbz |
 | ...                                | ...                                |
