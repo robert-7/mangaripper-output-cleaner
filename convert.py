@@ -210,12 +210,26 @@ def convert():
                     error_message = "Glob missed some images: total={}, glob_caught={}. This file is called: {}"
                     raise Exception(error_message.format(number_of_images, number_of_images_by_glob, missed))
 
-            # for every image of interest...
-            duplicate_handler = 1
+        # we need this variable to handle duplicates
+        duplicate_handler = 1
 
-        for name in glob_caught_images:
+        # for every image of interest...
+        mode = "capture"
+        for i in range(len(glob_caught_images)):
+            name = glob_caught_images[i]
             chapter_as_string = str(chapter).zfill(ZFILL_LENGTH)
+
+            # this ensures we capture the given image index and output it accordingly
             page_as_string = re.findall(r'\d+', name)[-1].zfill(3)
+
+            # an additional check to handle exceptions: Shingeki no Kyojin -
+            # Chapter 97 from mangahere.cc has images with format like so:
+            # mshingeki-no-kyojin-9734011.jpg
+            if len(page_as_string) > 3:
+                mode = "force_to_be_index"
+            if mode == "force_to_be_index":
+                page_as_string = str(i+1).zfill(3)
+
             new_name = "{}-{}.jpg".format(chapter_as_string, page_as_string)
             if DEBUG_BOOLEAN:
                 print(name + " -> " + new_name)
