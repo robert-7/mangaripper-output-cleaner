@@ -79,13 +79,25 @@ except Exception:
 # obtain BACKUP_DIRECTORY
 BACKUP_DIRECTORY = config[MANGA_SECTION]["BACKUP_DIRECTORY"]
 
-# parse ZFILL_LENGTH
-ZFILL_LENGTH = config[MANGA_SECTION]["ZFILL_LENGTH"]
+# parse ZFILL_LENGTH_CHAPTER
+ZFILL_LENGTH_CHAPTER = config[MANGA_SECTION]["ZFILL_LENGTH_CHAPTER"]
 try:
-    ZFILL_LENGTH = int(ZFILL_LENGTH)
+    ZFILL_LENGTH_CHAPTER = int(ZFILL_LENGTH_CHAPTER)
+    if ZFILL_LENGTH_CHAPTER < 1:
+        raise ValueError
 except ValueError:
-    error_msg = "ZFILL_LENGTH must be whole number greater than zero. Currently, it is: {}"
-    raise Exception(error_msg.format(ZFILL_LENGTH))
+    error_msg = "ZFILL_LENGTH_CHAPTER must be whole number greater than zero. Currently, it is: {}"
+    raise Exception(error_msg.format(ZFILL_LENGTH_CHAPTER))
+
+# parse ZFILL_LENGTH_PAGE
+ZFILL_LENGTH_PAGE = config[MANGA_SECTION]["ZFILL_LENGTH_PAGE"]
+try:
+    ZFILL_LENGTH_PAGE = int(ZFILL_LENGTH_PAGE)
+    if ZFILL_LENGTH_PAGE < 1:
+        raise ValueError
+except ValueError:
+    error_msg = "ZFILL_LENGTH_PAGE must be whole number greater than zero. Currently, it is: {}"
+    raise Exception(error_msg.format(ZFILL_LENGTH_PAGE))
 
 # parse BUCKETS_RANGE
 BUCKETS_RANGE = config[MANGA_SECTION]["BUCKETS_RANGE"]
@@ -93,7 +105,7 @@ try:
     BUCKETS_RANGE = int(BUCKETS_RANGE)
     if BUCKETS_RANGE < 1:
         raise Exception()
-except:
+except ValueError:
     error_msg = "BUCKETS_RANGE must be whole number greater than zero. Currently, it is: {}"
     raise Exception(error_msg.format(BUCKETS_RANGE))
 
@@ -114,12 +126,13 @@ if DEBUG_BOOLEAN:
     print("CHAPTER_INCREMENT = {}".format(CHAPTER_INCREMENT))
     print("BACKUP_BOOLEAN = {}".format(BACKUP_BOOLEAN))
     print("BACKUP_DIRECTORY = {}".format(BACKUP_DIRECTORY))
-    print("ZFILL_LENGTH = {}".format(ZFILL_LENGTH))
+    print("ZFILL_LENGTH_CHAPTER = {}".format(ZFILL_LENGTH_CHAPTER))
+    print("ZFILL_LENGTH_PAGE = {}".format(ZFILL_LENGTH_PAGE))
     print("BUCKETS_RANGE = {}".format(BUCKETS_RANGE))
     print("DIRECTORY = {}".format(DIRECTORY))
 
 
-def get_number_of_chapters(path=".", extension=".jpg"):
+def get_number_of_chapters(path="."):
     list_dir = os.listdir(path)
     count = 0
 
@@ -153,7 +166,7 @@ def copytree(src, dst, symlinks=False, ignore=None):
             shutil.copy2(s, d)
 
 
-def backup():
+def backup(dir_name):
 
     # start in correct directory
     os.chdir(DIRECTORY)
@@ -161,9 +174,9 @@ def backup():
     temp_chapters = np.arange(CHAPTER_RANGE_START, CHAPTER_RANGE_FINISH, CHAPTER_INCREMENT).tolist()
     chapters = []
     if BACKUP_BOOLEAN:
-        if os.path.isdir(BACKUP_DIRECTORY):
-            shutil.rmtree(BACKUP_DIRECTORY)
-        os.makedirs(BACKUP_DIRECTORY)
+        if os.path.isdir(dir_name):
+            shutil.rmtree(dir_name)
+        os.makedirs(dir_name)
 
         number_of_chapters = get_number_of_chapters()
         if number_of_chapters == 0:
@@ -178,21 +191,18 @@ def backup():
                 temp_chapters[chapter_index] = chapter
             chapter_folder = CHAPTER_FOLDER_TEMPLATE.format(chapter)
             if os.path.isdir(chapter_folder):
-                os.chdir(BACKUP_DIRECTORY)
+                os.chdir(dir_name)
                 os.mkdir(chapter_folder)
                 os.chdir("..")
-                copytree(chapter_folder, BACKUP_DIRECTORY + "/" + chapter_folder)
+                copytree(chapter_folder, dir_name + "/" + chapter_folder)
                 chapters.append(chapter)
-    
+
     return chapters
 
 
 def convert():
 
-    # start in correct directory
-    os.chdir(DIRECTORY)
-
-    chapters = backup()
+    chapters = backup(BACKUP_DIRECTORY + "_before_convert")
     
     for chapter in chapters:
         if DEBUG_BOOLEAN:
@@ -217,7 +227,7 @@ def convert():
         mode = "capture"
         for i in range(len(glob_caught_images)):
             name = glob_caught_images[i]
-            chapter_as_string = str(chapter).zfill(ZFILL_LENGTH)
+            chapter_as_string = str(chapter).zfill(ZFILL_LENGTH_CHAPTER)
 
             # this ensures we capture the given image index and output it accordingly
             page_as_string = re.findall(r'\d+', name)[-1].zfill(3)
@@ -245,7 +255,16 @@ def convert():
         os.chdir("..")
 
 
-def get_lower_bound(n):
+def _get_bound_as_string(n):
+    if int(n) == n:
+        n = str(n) + ",0"
+    else:
+        n = str(n).replace(".", ",")
+
+    return n
+
+
+def _get_lower_bound_as_string(n, chapters):
     """
     We want to get the lower bound for the bucket of chapters.
     00001-00010, 00011-00020, etc
@@ -257,10 +276,23 @@ def get_lower_bound(n):
     else:
         lower = n - (n % BUCKETS_RANGE) + 0.5
 
-    return lower
+    # we also want to ensure the lowest chapter in a book title isn't below
+    # CHAPTER_RANGE_START
+    min_n = min(chapters)
+    if lower < min_n:
+        lower = min_n
+
+    # ensure our book titles only have valid chapters
+    if lower not in chapters:
+        for potential_lower in chapters:
+            if potential_lower > lower:
+                lower = potential_lower
+                break
+
+    return _get_bound_as_string(lower)
 
 
-def get_upper_bound(n):
+def _get_upper_bound_as_string(n, chapters):
     """
     We want to get the upper bound for the bucket of chapters.
     00001-00010, 00011-00020, etc
@@ -272,19 +304,40 @@ def get_upper_bound(n):
     else:
         upper = int((n + BUCKETS_RANGE) - (n % BUCKETS_RANGE))
 
-    return upper
+    # we also want to ensure the highest chapter in a book title isn't above
+    # CHAPTER_RANGE_START
+    max_n = max(chapters)
+    if upper > max_n:
+        upper = max_n
+
+    return _get_bound_as_string(upper)
 
 
 def move():
     # once again, we want to backup the chapters
-    chapters = backup()
+    chapters = backup(BACKUP_DIRECTORY + "_before_move")
+
+    # we need the maximum chapter length
+    if int(max(chapters)) == max(chapters):
+
+        # example: if the max chapter is 14, it'll look like 14,0 in the
+        # chapter title, and so we need a length of 4
+        needed_zfill_length_chapter = len(str(max(chapters))) + 2
+
+    else:
+
+        # example: if the max chapter is 14.5, it'll look like 14,4 in the
+        # chapter title, and so we need a length of 4
+        needed_zfill_length_chapter = len(str(max(chapters)))
 
     # for every chapter...
     for chapter in chapters:
 
         # get the lower and upper bound for the bucket of chapters
-        lower = str(get_lower_bound(chapter)).replace(".", ",").zfill(ZFILL_LENGTH)
-        upper = str(get_upper_bound(chapter)).zfill(ZFILL_LENGTH)
+        lower = str(_get_lower_bound_as_string(chapter, chapters)).\
+            zfill(needed_zfill_length_chapter)
+        upper = str(_get_upper_bound_as_string(chapter, chapters)).\
+            zfill(needed_zfill_length_chapter)
         new_chapters_folder_range = "{}-{}".format(lower, upper)
         new_chapters_folder = CHAPTER_FOLDER_TEMPLATE.format(new_chapters_folder_range)
 
@@ -313,7 +366,7 @@ def archive():
     Takes every bucket folder and zips them up.
     """
 
-    glob_template = CHAPTER_FOLDER_TEMPLATE.format("*,5-*")
+    glob_template = CHAPTER_FOLDER_TEMPLATE.format("*")
     glob_caught_folders = glob(glob_template)
     for folder in glob_caught_folders:
         shutil.make_archive(folder, 'zip', folder)
@@ -324,7 +377,7 @@ def to_cbz():
     Takes every bucket .zip folder and changes the extension to .cbz.
     """
 
-    glob_template = CHAPTER_FOLDER_TEMPLATE.format("*,5-*.zip")
+    glob_template = CHAPTER_FOLDER_TEMPLATE.format("*.zip")
     glob_caught_folders = glob(glob_template)
     for zip_file in glob_caught_folders:
         cbz_file = zip_file.replace(".zip", ".cbz")
@@ -332,6 +385,10 @@ def to_cbz():
 
 
 if __name__ == "__main__":
+
+    # start in correct directory
+    os.chdir(DIRECTORY)
+
     if DEBUG_BOOLEAN:
         print(DEBUG_STAGE_FORMAT.format("convert"))
     convert()
