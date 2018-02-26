@@ -16,7 +16,7 @@ config.read(CONFIG_FILE)
 
 # parse TITLE
 TITLE = config[MANGA_SECTION]["TITLE"]
-CHAPTER_FOLDER_TEMPLATE = TITLE + " {}"
+CHAPTER_FOLDER_TEMPLATE = TITLE + " - {}"
 # TODO: Add Check here
 
 # parse directory
@@ -41,9 +41,10 @@ if os.path.exists(DIRECTORY) and not os.path.isdir(DIRECTORY):
 # parse CHAPTER_RANGE_START
 CHAPTER_RANGE_START = config[MANGA_SECTION]["CHAPTER_RANGE_START"]
 try:
-    CHAPTER_RANGE_START = int(CHAPTER_RANGE_START)
-    if CHAPTER_RANGE_START <= 0:
-        raise Exception()
+    if CHAPTER_RANGE_START != "":
+        CHAPTER_RANGE_START = int(CHAPTER_RANGE_START)
+        if CHAPTER_RANGE_START <= 0:
+            raise Exception()
 except ValueError:
     error_msg = "CHAPTER_RANGE_START must be whole number greater than zero. Currently, it is: {}"
     raise Exception(error_msg.format(CHAPTER_RANGE_START))
@@ -51,22 +52,13 @@ except ValueError:
 # parse CHAPTER_RANGE_FINISH
 CHAPTER_RANGE_FINISH = config[MANGA_SECTION]["CHAPTER_RANGE_FINISH"]
 try:
-    CHAPTER_RANGE_FINISH = int(CHAPTER_RANGE_FINISH)
-    if CHAPTER_RANGE_FINISH <= CHAPTER_RANGE_START:
-        raise Exception()
+    if CHAPTER_RANGE_FINISH != "":
+        CHAPTER_RANGE_FINISH = int(CHAPTER_RANGE_FINISH)
+        if CHAPTER_RANGE_FINISH <= CHAPTER_RANGE_START:
+            raise Exception()
 except ValueError:
     error_msg = "CHAPTER_RANGE_FINISH must be whole number greater than zero. Currently, it is: {}"
     raise Exception(error_msg.format(CHAPTER_RANGE_FINISH))
-
-# parse CHAPTER_INCREMENT
-CHAPTER_INCREMENT = config[MANGA_SECTION]["CHAPTER_INCREMENT"]
-if CHAPTER_INCREMENT == "0.5":
-    CHAPTER_INCREMENT = 0.5
-elif CHAPTER_INCREMENT == "1":
-    CHAPTER_INCREMENT = 1
-else:
-    error_msg = "CHAPTER_INCREMENT must be 0.5 or 1. Currently, it is: {}"
-    raise Exception(error_msg.format(CHAPTER_INCREMENT))
 
 # parse BACKUP_BOOLEAN
 BACKUP_BOOLEAN = config[MANGA_SECTION]["BACKUP_BOOLEAN"]
@@ -123,7 +115,6 @@ if DEBUG_BOOLEAN:
     print("CHAPTER_FOLDER_TEMPLATE = {}".format(CHAPTER_FOLDER_TEMPLATE))
     print("CHAPTER_RANGE_START = {}".format(CHAPTER_RANGE_START))
     print("CHAPTER_RANGE_FINISH = {}".format(CHAPTER_RANGE_FINISH))
-    print("CHAPTER_INCREMENT = {}".format(CHAPTER_INCREMENT))
     print("BACKUP_BOOLEAN = {}".format(BACKUP_BOOLEAN))
     print("BACKUP_DIRECTORY = {}".format(BACKUP_DIRECTORY))
     print("ZFILL_LENGTH_CHAPTER = {}".format(ZFILL_LENGTH_CHAPTER))
@@ -132,9 +123,9 @@ if DEBUG_BOOLEAN:
     print("DIRECTORY = {}".format(DIRECTORY))
 
 
-def get_number_of_chapters(path="."):
+def _get_chapter_titles(path="."):
     list_dir = os.listdir(path)
-    count = 0
+    chapter_titles_found = []
 
     # for every file in our list
     for file in list_dir:
@@ -142,17 +133,210 @@ def get_number_of_chapters(path="."):
         # if the title we're looking for is in the file
         if TITLE in file:
 
-            # increment our counter
-            count += 1
-    return count
+            # add it to the list of chapter file names
+            chapter_titles_found.append(file)
+
+    return chapter_titles_found
 
 
-def get_number_of_images(path=".", extension=".jpg"):
+def _get_chapter_numbers_as_strings():
+    chapter_numbers = []
+    chapter_titles_found = _get_chapter_titles()
+    for chapter_title in chapter_titles_found:
+        chapter_number_as_string = _get_chapter_number_from_title_as_string(chapter_title)
+        chapter_numbers.append(chapter_number_as_string)
+
+    return chapter_numbers
+
+
+def _get_chapter_numbers_as_floats():
+    chapter_numbers_as_floats = []
+    chapter_numbers_as_strings = _get_chapter_numbers_as_strings()
+    for chapter_title_as_string in chapter_numbers_as_strings:
+        chapter_number_as_float = float(chapter_title_as_string)
+        chapter_numbers_as_floats.append(chapter_number_as_float)
+
+    return chapter_numbers_as_floats
+
+
+def _get_max_chapter_length():
+    max_chapter_length = 0
+    chapter_numbers = _get_chapter_numbers_as_strings()
+    for chapter_number in chapter_numbers:
+        if len(chapter_number) > max_chapter_length:
+            max_chapter_length = len(chapter_number)
+
+    return max_chapter_length
+
+
+def _get_min_chapter_length():
+    min_chapter_length = 100
+    chapter_numbers = _get_chapter_numbers_as_strings()
+    for chapter_number in chapter_numbers:
+        if len(chapter_number) < min_chapter_length:
+            min_chapter_length = len(chapter_number)
+
+    return min_chapter_length
+
+
+def _get_max_chapter():
+    max_chapter = 0
+    chapter_numbers = _get_chapter_numbers_as_strings()
+    for chapter_number in chapter_numbers:
+        chapter_number = float(chapter_number)
+        if chapter_number > max_chapter:
+            max_chapter = len(chapter_number)
+
+    max_chapter
+
+
+def _get_min_chapter():
+    min_chapter = 0
+    chapter_numbers = _get_chapter_numbers_as_strings()
+    for chapter_number in chapter_numbers:
+        chapter_number = float(chapter_number)
+        if chapter_number < min_chapter:
+            min_chapter = len(min_chapter)
+
+    min_chapter
+
+
+def _get_chapter_number_from_title_as_string(chapter_title):
+    if TITLE not in chapter_title:
+        error_msg = "chapter title '{}' doesn't include TITLE '{}' in the name. How did we get here?"
+        raise Exception(error_msg.format(chapter_title, TITLE))
+
+    # get relevant contents after title
+    after = chapter_title.split(TITLE)[1].strip()
+
+    # sometimes you'll see a title with nothing but the chapter number after
+    #   0 kara Hajimeru Manga Kyoushitsu 001
+    # sometimes the title won't have the chapter number zero-padded
+    #   A Love for Sweet Things 1
+    #   A Love for Sweet Things 2
+    #   A Love for Sweet Things 3
+    # sometimes you'll see a title with a 'Ch.' before the chapter number
+    #   .hack//4 koma Ch.001: Delicacy-chan
+    # sometimes you'll see a title with a 'Chapter' before the chapter number
+    #   Grand Blue Chapter 037.001
+    # sometimes you'll see 'Ch.Extra'???
+    #   Ai Kara Hajimaru Vol.001 Ch.Extra 001: Sugarless Kiss
+    # sometimes you'll see a title with a 'Vol: ' and 'Ch: ' mentioned
+    #   29-sai Hitorimi Chuuken Boukensha no Nichijou Vol.001 Ch.003: Father?
+    # sometimes you'll see a title with a 'vol: ' and 'ch: ' mentioned
+    #   Rakujitsu no Pathos vol.003 ch.023
+    # sometimes you'll see inconsistencies
+    #   Raisekamika Chapter 010
+    #   Raisekamika Vol.002 Ch.009
+    # sometimes you'll see multiple occurrences of a chapter
+    #   Rakuen Vol.001 Ch.003.003 Read Online
+    #   Rakuen Vol.001 Ch.003.002 Read Online
+    #   Rakuen Vol.001 Ch.003.001 Read Online
+    # sometimes you'll see two occurrences of the number
+    #   Ai Yuugi Vol.001 Ch.003: Love Game (003)
+    # chapters can start at zero?
+    #   AI07 Ch.000
+    # two occurrences of the same chapter?
+    #   Aibu de Jirashite Vol.Extra Ch.000: 001
+    #   Aibu de Jirashite Vol.001 Ch.005
+    #   ...
+    #   Aibu de Jirashite Vol.001 Ch.001 Read Online
+
+    # remove the volume, since we're not interested in it
+    if "Vol" in after or "vol" in after:
+        if "Vol" in after:
+            after = after.split("Vol")[1]
+
+        elif "vol" in after:
+            after = after.split("vol")[1]
+
+        # we should also remove the volume number that's comes after, cases:
+        #   Vol.001
+        #   Vol.Extra
+        # a period or colon between
+        while (after[0] == ".") or \
+                (after.startswith("Extra")) or \
+                (after[0].isdigit()):
+
+            # handle these separately
+            if (after[0] == ".") or (after[0].isdigit()):
+                after = after[1:]
+            elif after.startswith("Extra"):
+                after = after.split("Extra")
+
+        # remove whitespace
+        after.lstrip()
+
+    # remove the chapter indicator (if it's given)
+    if "Chapter" in after or "Ch" in after or "ch" in after:
+        if "Chapter" in after:
+            after = after.split("Chapter")[1]
+
+        elif "Ch" in after:
+            after = after.split("Ch")[1]
+
+        elif "ch" in after:
+            after = after.split("ch")[1]
+
+        # we should also remove what comes after the chapter indicator and before the number
+        #   Chapter 001
+        #   Ch.001
+        #   Ch.Extra 001
+        # a period or colon between
+        while (after[0] == ".") or \
+                (after[0] == " ") or \
+                (after.startswith("Extra")):
+
+            # handle these separately
+            if (after[0] == ".") or (after[0] == " "):
+                after = after[1:]
+            elif after.startswith("Extra"):
+                after = after.split("Extra")[1]
+
+    # in our own custom templating, we should have something like:
+    #   '- 01.0'
+    if "- " in after:
+        after = after.split("- ")[1]
+
+    # after should now start with the chapter number
+    #   001
+    #   001.001:
+    chapter_number = ""
+    while len(after) != 0 and (after[0].isdigit() or after[0] == "."):
+        chapter_number += after[0]
+        after = after[1:]
+
+    # we should crash if we couldn't find the chapter number
+    if chapter_number == "":
+        error_msg = "couldn't find the chapter_number from the chapter title '{}'"
+        raise Exception(error_msg.format(chapter_title))
+
+    return chapter_number
+
+
+def _cleanup_chapter_number(str_n):
+    """Given something like '001.001', return 1.1'"""
+
+    if str_n.find(".") != -1:
+        before, after = str_n.split(".")
+        before = str(int(before))
+        after = str(int(after))
+        return_float = float(".".join([before, after]))
+
+    else:
+        return_float = float(str(int(str_n)))
+
+    return return_float
+
+
+def get_number_of_images(path=".", accepted_file_extensions=('png', 'jpg', 'jpeg')):
     list_dir = os.listdir(path)
     count = 0
     for file in list_dir:
-        if file.endswith(extension):  # eg: '.txt'
-            count += 1
+        for accepted_file_extension in accepted_file_extensions:
+            if file.endswith(accepted_file_extension):
+                count += 1
+                break
     return count
 
 
@@ -171,54 +355,119 @@ def backup(dir_name):
     # start in correct directory
     os.chdir(DIRECTORY)
 
-    temp_chapters = np.arange(CHAPTER_RANGE_START, CHAPTER_RANGE_FINISH, CHAPTER_INCREMENT).tolist()
-    chapters = []
+    # if the BACKUP_BOOLEAN is specified (it should always be)
     if BACKUP_BOOLEAN:
+
+        # (re)create the backup directory
         if os.path.isdir(dir_name):
             shutil.rmtree(dir_name)
         os.makedirs(dir_name)
 
-        number_of_chapters = get_number_of_chapters()
-        if number_of_chapters == 0:
+        # get the chapters
+        chapters_titles_found = _get_chapter_titles()
+
+        # fail if no chapters were found
+        if len(chapters_titles_found) == 0:
             error_msg = "There are no chapters with the title '{}' in the " \
                         "directory '{}'. Check the appropriate variables in the configuration file."
             raise Exception(error_msg.format(TITLE, DIRECTORY))
 
-        for chapter_index in range(len(temp_chapters)):  # type: list
-            chapter = temp_chapters[chapter_index]
-            if int(chapter) == chapter:
-                chapter = int(chapter)
-                temp_chapters[chapter_index] = chapter
-            chapter_folder = CHAPTER_FOLDER_TEMPLATE.format(chapter)
-            if os.path.isdir(chapter_folder):
-                os.chdir(dir_name)
-                os.mkdir(chapter_folder)
-                os.chdir("..")
-                copytree(chapter_folder, dir_name + "/" + chapter_folder)
-                chapters.append(chapter)
+        # move all the folders
+        for chapter_title in chapters_titles_found:
 
-    return chapters
+            # sanity check that folder exists
+            if not os.path.isdir(chapter_title):
+                error_msg = "chapter_folder '{}' is not a folder."
+                raise Exception(error_msg.format(chapter_title))
+
+            os.chdir(dir_name)
+            os.mkdir(chapter_title)
+            os.chdir("..")
+            copytree(chapter_title, dir_name + "/" + chapter_title)
 
 
-def convert():
+def fix_folders():
 
-    chapters = backup(BACKUP_DIRECTORY + "_before_convert")
-    
-    for chapter in chapters:
+    backup(BACKUP_DIRECTORY + "_before_fix_folders")
+
+    # get the chapters
+    chapters_titles_found = _get_chapter_titles()
+    chapter_titles_and_numbers_fixed = []
+    max_chapter_number_length = 0
+    for chapter_title in chapters_titles_found:
+        chapter_number = _get_chapter_number_from_title_as_string(chapter_title)
+        chapter_number = _cleanup_chapter_number(chapter_number)
+        if len(str(chapter_number)) > max_chapter_number_length:
+            max_chapter_number_length = len(str(chapter_number))
+        chapter_titles_and_numbers_fixed.append((chapter_title, chapter_number))
+
+    for (chapter_title, chapter_number) in chapter_titles_and_numbers_fixed:
+        chapter_number = str(chapter_number).zfill(max_chapter_number_length)
+        new_chapter_title = CHAPTER_FOLDER_TEMPLATE.format(chapter_number)
+        os.rename(chapter_title, new_chapter_title)
+
+
+def fix_images():
+    # backup(BACKUP_DIRECTORY + "_before_fix_images")
+
+    minimum_number_of_images = 1
+
+    chapters_titles_found = _get_chapter_titles()
+    chapters_with_too_little_images = []
+    for chapter_title in chapters_titles_found:
+        os.chdir(chapter_title)
+        number_of_images = get_number_of_images()
+        if number_of_images <= minimum_number_of_images:
+            chapters_with_too_little_images.append(chapter_title)
+
+    if len(chapters_with_too_little_images) > 0:
+        error_message = "Glob caught less than or equal to {} images in these directories: {}."
+        raise Exception(
+            error_message.format(minimum_number_of_images,
+                                 chapters_with_too_little_images))
+
+    for chapter_title in chapters_titles_found:
+        chapter = _get_chapter_number_from_title_as_string(chapter_title)
+
         if DEBUG_BOOLEAN:
             print("Chapter {}".format(chapter))
         chapter_folder = CHAPTER_FOLDER_TEMPLATE.format(chapter)
         os.chdir(chapter_folder)
         number_of_images = get_number_of_images()
-        glob_regex = '*[0-9][0-9][0-9]*.jpg'
-        glob_caught_images = glob(glob_regex)
+        accepted_file_extensions = ('png', 'jpg', 'jpeg')
+        rejected_file_extensions = ('txt',)
+        potential_substrings = ("cred", "gb")
+        glob_regex_base = '*[0-9][0-9][0-9]*'
+        glob_caught_images = []
+        for file_extension in accepted_file_extensions:
+            glob_caught_images_with_file_extension = glob(glob_regex_base + '.' + file_extension)
+            glob_caught_images.extend(glob_caught_images_with_file_extension)
         number_of_images_by_glob = len(glob_caught_images)
+
+        if number_of_images_by_glob <= 1:
+            error_message = "Glob caught less than or equal to {} images in the {} directory."
+            raise Exception(
+                error_message.format(minimum_number_of_images, chapter_title))
+
         if number_of_images != number_of_images_by_glob:
-            glob_missed_images = set(glob("*")) - set(glob(glob_regex))
+            glob_missed_images = set(glob("*")) - set(glob_caught_images)
             for missed in glob_missed_images:
-                if ("cred" not in missed) and ("gb" not in missed):
-                    error_message = "Glob missed some images: total={}, glob_caught={}. This file is called: {}"
-                    raise Exception(error_message.format(number_of_images, number_of_images_by_glob, missed))
+
+                # we might get some random files that absolutely shouldn't
+                # be in here. Delete them.
+                for rejected_file_extension in rejected_file_extensions:
+                    if missed.endswith(rejected_file_extension):
+                        os.remove(missed)
+
+                # raise an error if it's not a recognized filename
+                for potential_substring in potential_substrings:
+                    if potential_substring not in missed:
+                        error_message = "Glob missed some images: total={}, glob_caught={}. " \
+                                        "This file is called '{}' in the {} directory."
+                        raise Exception(
+                            error_message.format(
+                                number_of_images, number_of_images_by_glob,
+                                missed, chapter_title))
 
         # we need this variable to handle duplicates
         duplicate_handler = 1
@@ -234,41 +483,37 @@ def convert():
 
             # an additional check to handle exceptions: Shingeki no Kyojin -
             # Chapter 97 from mangahere.cc has images with format like so:
-            # mshingeki-no-kyojin-9734011.jpg
+            # shingeki-no-kyojin-9734011.jpg
             if len(page_as_string) > 3:
                 mode = "force_to_be_index"
             if mode == "force_to_be_index":
-                page_as_string = str(i+1).zfill(3)
+                page_as_string = str(i + 1).zfill(3)
 
             new_name = "{}-{}.jpg".format(chapter_as_string, page_as_string)
             if DEBUG_BOOLEAN:
                 print(name + " -> " + new_name)
-            
+
             # handle duplicates
             if os.path.isfile(new_name):
                 duplicate_handler += 1
                 new_name = new_name + "-" + str(duplicate_handler)
-            
+
             # rename the file
             os.rename(name, new_name)
-                
+
         os.chdir("..")
 
 
 def _get_bound_as_string(n):
-    if int(n) == n:
-        n = str(n) + ",0"
-    else:
-        n = str(n).replace(".", ",")
-
-    return n
+    return str(n)
 
 
-def _get_lower_bound_as_string(n, chapters):
+def _get_lower_bound_as_string(str_n, chapters):
     """
     We want to get the lower bound for the bucket of chapters.
     00001-00010, 00011-00020, etc
     """
+    n = float(str_n)
     mod = n % BUCKETS_RANGE
 
     if mod == 0:
@@ -292,17 +537,18 @@ def _get_lower_bound_as_string(n, chapters):
     return _get_bound_as_string(lower)
 
 
-def _get_upper_bound_as_string(n, chapters):
+def _get_upper_bound_as_string(str_n, chapters):
     """
     We want to get the upper bound for the bucket of chapters.
     00001-00010, 00011-00020, etc
     """
+    n = float(str_n)
     mod = n % BUCKETS_RANGE
 
     if mod == 0:
         upper = n
     else:
-        upper = int((n + BUCKETS_RANGE) - (n % BUCKETS_RANGE))
+        upper = (n + BUCKETS_RANGE) - (n % BUCKETS_RANGE)
 
     # we also want to ensure the highest chapter in a book title isn't above
     # CHAPTER_RANGE_START
@@ -315,29 +561,24 @@ def _get_upper_bound_as_string(n, chapters):
 
 def move():
     # once again, we want to backup the chapters
-    chapters = backup(BACKUP_DIRECTORY + "_before_move")
+    backup(BACKUP_DIRECTORY + "_before_move")
 
-    # we need the maximum chapter length
-    if int(max(chapters)) == max(chapters):
-
-        # example: if the max chapter is 14, it'll look like 14,0 in the
-        # chapter title, and so we need a length of 4
-        needed_zfill_length_chapter = len(str(max(chapters))) + 2
-
-    else:
-
-        # example: if the max chapter is 14.5, it'll look like 14,4 in the
-        # chapter title, and so we need a length of 4
-        needed_zfill_length_chapter = len(str(max(chapters)))
+    # get the chapters
+    chapter_numbers_as_strings = _get_chapter_numbers_as_strings()
+    chapter_numbers_as_floats = _get_chapter_numbers_as_floats()
+    max_chapter_number_length = _get_max_chapter_length()
 
     # for every chapter...
-    for chapter in chapters:
+    for i in range(len(chapter_numbers_as_strings)):
+
+        chapter_number_as_string = chapter_numbers_as_strings[i]
+        chapter_number_as_float = chapter_numbers_as_floats[i]
 
         # get the lower and upper bound for the bucket of chapters
-        lower = str(_get_lower_bound_as_string(chapter, chapters)).\
-            zfill(needed_zfill_length_chapter)
-        upper = str(_get_upper_bound_as_string(chapter, chapters)).\
-            zfill(needed_zfill_length_chapter)
+        lower = str(_get_lower_bound_as_string(chapter_number_as_float, chapter_numbers_as_floats)).\
+            zfill(max_chapter_number_length)
+        upper = str(_get_upper_bound_as_string(chapter_number_as_float, chapter_numbers_as_floats)).\
+            zfill(max_chapter_number_length)
         new_chapters_folder_range = "{}-{}".format(lower, upper)
         new_chapters_folder = CHAPTER_FOLDER_TEMPLATE.format(new_chapters_folder_range)
 
@@ -345,7 +586,7 @@ def move():
         if not os.path.isdir(new_chapters_folder):
             os.makedirs(new_chapters_folder)
 
-        old_chapters_folder = CHAPTER_FOLDER_TEMPLATE.format(chapter)
+        old_chapters_folder = CHAPTER_FOLDER_TEMPLATE.format(chapter_number_as_string)
         os.chdir(old_chapters_folder)
 
         # for every image...
@@ -390,8 +631,12 @@ if __name__ == "__main__":
     os.chdir(DIRECTORY)
 
     if DEBUG_BOOLEAN:
-        print(DEBUG_STAGE_FORMAT.format("convert"))
-    convert()
+        print(DEBUG_STAGE_FORMAT.format("fix_folders"))
+    fix_folders()
+
+    if DEBUG_BOOLEAN:
+        print(DEBUG_STAGE_FORMAT.format("fix_images"))
+    fix_images()
 
     if DEBUG_BOOLEAN:
         print(DEBUG_STAGE_FORMAT.format("move"))
