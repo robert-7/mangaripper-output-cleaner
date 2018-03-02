@@ -187,7 +187,7 @@ def _get_max_chapter():
         if chapter_number > max_chapter:
             max_chapter = len(chapter_number)
 
-    max_chapter
+    return max_chapter
 
 
 def _get_min_chapter():
@@ -198,7 +198,7 @@ def _get_min_chapter():
         if chapter_number < min_chapter:
             min_chapter = len(min_chapter)
 
-    min_chapter
+        return min_chapter
 
 
 def _get_chapter_number_from_title_as_string(chapter_title):
