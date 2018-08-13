@@ -1,6 +1,5 @@
 import os
 from glob import glob
-import numpy as np
 import shutil
 import re
 from configparser import ConfigParser
@@ -24,7 +23,7 @@ DIRECTORY = config[MANGA_SECTION]["DIRECTORY"]
 
 # ensure directory exists
 if not os.path.exists(DIRECTORY):
-    error_msg = "{} must exists. Currently, it does not."
+    error_msg = "The directory {} must exist. Currently, it does not."
     raise Exception(error_msg.format(DIRECTORY))
 
 # ensure it's a directory
@@ -121,6 +120,10 @@ if DEBUG_BOOLEAN:
     print("ZFILL_LENGTH_PAGE = {}".format(ZFILL_LENGTH_PAGE))
     print("BUCKETS_RANGE = {}".format(BUCKETS_RANGE))
     print("DIRECTORY = {}".format(DIRECTORY))
+
+
+def verify_config():
+    pass
 
 
 def _get_chapter_titles(path="."):
@@ -414,11 +417,16 @@ def fix_images():
 
     chapters_titles_found = _get_chapter_titles()
     chapters_with_too_little_images = []
+
+    # for every folder...
     for chapter_title in chapters_titles_found:
+
+        # enter that folder an ensure there are enough photos caught
         os.chdir(chapter_title)
         number_of_images = get_number_of_images()
         if number_of_images <= minimum_number_of_images:
             chapters_with_too_little_images.append(chapter_title)
+        os.chdir("..")
 
     if len(chapters_with_too_little_images) > 0:
         error_message = "Glob caught less than or equal to {} images in these directories: {}."
@@ -629,6 +637,10 @@ if __name__ == "__main__":
 
     # start in correct directory
     os.chdir(DIRECTORY)
+
+    if DEBUG_BOOLEAN:
+        print(DEBUG_STAGE_FORMAT.format("verify_config"))
+    verify_config()
 
     if DEBUG_BOOLEAN:
         print(DEBUG_STAGE_FORMAT.format("fix_folders"))
