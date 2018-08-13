@@ -512,10 +512,6 @@ def fix_images():
         os.chdir("..")
 
 
-def _get_bound_as_string(n):
-    return str(n)
-
-
 def _get_lower_bound_as_string(str_n, chapters):
     """
     We want to get the lower bound for the bucket of chapters.
@@ -542,7 +538,7 @@ def _get_lower_bound_as_string(str_n, chapters):
                 lower = potential_lower
                 break
 
-    return _get_bound_as_string(lower)
+    return str(lower)
 
 
 def _get_upper_bound_as_string(str_n, chapters):
@@ -564,7 +560,7 @@ def _get_upper_bound_as_string(str_n, chapters):
     if upper > max_n:
         upper = max_n
 
-    return _get_bound_as_string(upper)
+    return str(upper)
 
 
 def move():
